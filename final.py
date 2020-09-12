@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import random
@@ -27,6 +28,29 @@ class Visual_BOW():
             test_features: list/array of size n_images_test x k x feature_dim
             test_labels: list/array of size n_images_test
         '''
+        train_features = []
+        train_labels = []
+        test_features = []
+        test_labels = []
+        for filename in os.listdir('101_ObjectCategories/'):
+            tmpTrain = []
+            tmpTest = []
+            for file in os.listdir('101_ObjectCategories/'+filename+'/'):
+                #70/30 split for files in directory, ADD check for nonetype?
+                image = cv2.imread('101_ObjectCategories/'+filename+'/'+file)
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                sift = cv2.xfeatures2d.SIFT_create(nfeatures = self.k)
+                kp, des = sift.detectAndCompute(gray, None)
+                if(len(kp) == 20):
+                    if(random.random()>=.3):
+                        tmpTrain.append(des)
+                        train_labels.append(filename)
+                    else:
+                        tmpTest.append(des)
+                        test_labels.append(filename)
+            train_features.append(tmpTrain)
+            test_features.append(tmpTest)
+        print('SIFT DEBUG- TF Length:', np.shape(train_features), 'TL Length:', len(train_labels), 'TestF Length:', np.shape(test_features), 'TestL Length:', len(test_labels))
         return train_features, train_labels, test_features, test_labels
 
     def create_dictionary(self, features):
@@ -42,6 +66,13 @@ class Visual_BOW():
         Output:
             kmeans: trained k-means object (algorithm trained on the flattened feature list)
         '''
+        flatlist = []
+        for i in features:
+            for j in i:
+                for k in j:
+                    flatlist.append(k)
+        kmeans = KMeans(n_clusters=self.dictionary_size).fit(flatlist)
+        print('KMeans trained')
         return kmeans
 
     def convert_features_using_dictionary(self, kmeans, features):
@@ -57,6 +88,11 @@ class Visual_BOW():
         Output:
             features_new: list/array of size n_images x dictionary_size
         '''
+        features_new = []
+        for i in range(len(features)):
+            for j in features[i]:
+                features_new.append(kmeans.predict(j))
+        print('FNew Shape:', np.shape(features_new))
         return features_new
 
     def train_svm(self, inputs, labels):
@@ -70,6 +106,9 @@ class Visual_BOW():
         Output:
             clf: trained svm classifier object (algorithm trained on the inputs/labels data)
         '''
+        clf = svm.SVC()
+        clf.fit(inputs, labels)
+        print('CLF:', clf)
         return clf
 
     def test_svm(self, clf, inputs, labels):
@@ -84,6 +123,12 @@ class Visual_BOW():
         Output:
             accuracy: percent of correctly predicted samples
         '''
+        accuracy = 0
+        predictions = clf.predict(inputs)
+        print(predictions)
+        for i in predictions:
+            if(predictions[i]==labels[i]): accuracy += 1
+        accuracy /= len(labels)
         return accuracy
 
     def save_plot(self, features, labels):
